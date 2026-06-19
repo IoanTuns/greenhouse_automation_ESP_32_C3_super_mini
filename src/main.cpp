@@ -95,6 +95,32 @@ void opresteTot() {
     Serial.println("[SISTEM] Toate releele sunt OPRIT.");
 }
 
+void salveazaRaportSD(float volZ1, float volZ2) {
+    File f = SD.open("/date_solar.csv", FILE_APPEND);
+    if (!f) {
+        Serial.println("[EROARE] SD: Nu s-a putut deschide /date_solar.csv.");
+        return;
+    }
+    if (f.size() == 0) {
+        f.println("Data,Ora,Volum_Z1_L,Volum_Z2_L,Temp_Sol_C");
+    }
+    String data = "N/A", ora = "N/A";
+    if (rtcAvailable) {
+        DateTime now = rtc.now();
+        char bufData[11], bufOra[9];
+        snprintf(bufData, sizeof(bufData), "%04d-%02d-%02d", now.year(), now.month(), now.day());
+        snprintf(bufOra,  sizeof(bufOra),  "%02d:%02d:%02d", now.hour(), now.minute(), now.second());
+        data = bufData;
+        ora  = bufOra;
+    }
+    sensors.requestTemperatures();
+    float tempSol = sensors.getTempCByIndex(0);
+    f.printf("%s,%s,%.2f,%.2f,%.2f\n", data.c_str(), ora.c_str(), volZ1, volZ2, tempSol);
+    f.close();
+    Serial.printf("[SD] Raport salvat: %s %s | Z1=%.2fL Z2=%.2fL | Sol=%.1f°C\n",
+                  data.c_str(), ora.c_str(), volZ1, volZ2, tempSol);
+}
+
 // Funcție pentru generarea paginii web de status
 void handleRoot() {
     // Utilizăm copii atomice ale contorilor pentru a evita citirea incoerentă în timpul întreruperilor
@@ -174,9 +200,15 @@ void handleNotFound() {
 }
 
 void setup() {
+    // 0. Relee OPRIT înainte de orice altceva — GPIO 8/9 sunt strapping pins și au pull-up la 5V pe modulul de relee
+    pinMode(PIN_POMPA, OUTPUT);
+    pinMode(PIN_VALVA_Z1, OUTPUT);
+    pinMode(PIN_VALVA_Z2, OUTPUT);
+    opresteTot();
+
     // Pornire comunicație Serială
     Serial.begin(115200);
-    while (!Serial) delay(10); // Așteaptă consola pe ESP32-C3 USB CDC
+    { unsigned long t = millis(); while (!Serial && millis() - t < 3000) delay(10); } // USB CDC opțional
     Serial.println("\n--- Sistem Automatizare Solar Inteligent ---");
     
     // 0. Inițializare Wi-Fi Access Point
@@ -229,12 +261,7 @@ void setup() {
         Serial.printf("[OK] DHT22: Senzor activ (Umiditate: %.1f%%, Temp: %.1f°C).\n", testH, testT);
     }
 
-    // 4. Configurare Relee (Logic Active LOW)
-    pinMode(PIN_POMPA, OUTPUT);
-    pinMode(PIN_VALVA_Z1, OUTPUT);
-    pinMode(PIN_VALVA_Z2, OUTPUT);
-    
-    opresteTot();
+    // 4. Relee — deja inițializate și OPRIT la începutul setup()
     Serial.println("[OK] Relee: Inițializate în stare OPRIT.");
 
     // 5. Configurare Debitmetre
@@ -306,6 +333,10 @@ void loop() {
         case UDARE_ZONA_2:
             if (((float)currentPulseZ2 / IMPULSURI_PER_LITRU) >= VOLUM_TINTA_Z2) {
                 Serial.println("[AUTOMATIZARE] Zona 2 finalizată, oprire generală.");
+                salveazaRaportSD(
+                    (float)currentPulseZ1 / IMPULSURI_PER_LITRU,
+                    (float)currentPulseZ2 / IMPULSURI_PER_LITRU
+                );
                 opresteTot();
             }
             break;
