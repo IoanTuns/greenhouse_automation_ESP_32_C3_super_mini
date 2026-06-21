@@ -25,11 +25,11 @@ Follow the GPIO pin numbers labeled on the back of your board. Note that pins 20
 
 | Peripheral / Sensor | Component Pin | ESP32-C3 Pin | Signal Type | Important Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| **DS3231 RTC Clock** | SDA<br>SCL<br>VCC<br>GND | **GPIO 1**<br>**GPIO 0**<br>**3.3V**<br>**G** | Digital (I2C) | Maintains offline time.<br>Powered at 3.3V (ESP32 pin or AMS1117 output — both are equivalent). |
+| **DS3231 RTC Clock** | SDA<br>SCL<br>VCC<br>GND | **GPIO 7**<br>**GPIO 6**<br>**3.3V**<br>**G** | Digital (I2C) | Maintains offline time.<br>Powered at 3.3V (ESP32 pin or AMS1117 output — both are equivalent).<br>GPIO 0/1 avoided — ESP32-C3 hardware I2C peripheral unreliable on those pins. |
 | **MicroSD Card Module** | MISO<br>MOSI<br>SCK<br>CS<br>VCC<br>GND | **GPIO 2**<br>**GPIO 3**<br>**GPIO 4**<br>**GPIO 10**<br>**5V**<br>**G** | Digital (Hardware SPI) | Used for data logging (.csv).<br>Connect VCC to 5V (module has a 3.3V onboard regulator).<br>**⚠ GPIO 2 is a boot strapping pin — add a 10kΩ pull-up from MISO to 3.3V. See Section 3F.** |
 | **4-Channel Relay Module** | IN1 (Pump)<br>IN2 (Valve Z1)<br>IN3 (Valve Z2)<br>JD-VCC<br>VCC<br>GND | **GPIO 5** via 1kΩ<br>**GPIO 8** via 1kΩ<br>**GPIO 9** via 1kΩ<br>**5V**<br>**3.3V**<br>**G** | Digital Output | Relays are active `LOW`.<br>**⚠ Remove the VCC↔JD-VCC jumper.** Power JD-VCC from 5V (coils) and VCC from 3.3V (logic). Add a 1kΩ series resistor on each IN line. See Section 3D. |
-| **Temp Sensors (DS18B20 x2)** | DATA (Signal)<br>VCC<br>GND | **GPIO 6**<br>**3.3V**<br>**G** | Digital (One-Wire) | Connect both sensors in parallel.<br>Requires a physical 4.7kΩ resistor between DATA and 3.3V. |
-| **DHT22 Climate Sensor** | DATA (Signal)<br>VCC<br>GND | **GPIO 7**<br>**3.3V**<br>**G** | Digital Input | Measures greenhouse air temperature and humidity.<br>Requires a physical 10kΩ resistor between DATA and 3.3V. See Section 3C. |
+| **Temp Sensors (DS18B20 x2)** | DATA (Signal)<br>VCC<br>GND | **GPIO 1**<br>**3.3V**<br>**G** | Digital (One-Wire) | Connect both sensors in parallel.<br>Requires a physical 4.7kΩ resistor between DATA and 3.3V. |
+| **DHT22 Climate Sensor** | DATA (Signal)<br>VCC<br>GND | **GPIO 0**<br>**3.3V**<br>**G** | Digital Input | Measures greenhouse air temperature and humidity.<br>Requires a physical 10kΩ resistor between DATA and 3.3V. See Section 3C. |
 | **Flow Meter Zone 1 (YF-S201)**| Yellow (Signal)<br>Red (+)<br>Black (-) | **GPIO 20**<br>**5V**<br>**G** | Interrupt Input | Located on the back-right corner pad.<br>Powered at 5V for Hall sensor accuracy.<br>**⚠ Signal is 5V — voltage divider required before GPIO 20. See Section 3E.** |
 | **Flow Meter Zone 2 (YF-S201)**| Yellow (Signal)<br>Red (+)<br>Black (-) | **GPIO 21**<br>**5V**<br>**G** | Interrupt Input | Located on the back-left corner pad.<br>Powered at 5V for Hall sensor accuracy.<br>**⚠ Signal is 5V — voltage divider required before GPIO 21. See Section 3E.** |
 
@@ -48,8 +48,8 @@ The inductive load from the solenoid coils can generate high-voltage spikes that
 ### C. Pull-Up Resistors for DS18B20 and DHT22
 Both sensors use single-wire protocols that require an external pull-up resistor on the DATA line. The ESP32-C3's internal pull-up (~45 kΩ) is too weak for either protocol and must not be relied upon.
 
-- **DS18B20 (GPIO 6):** Install a **4.7 kΩ** resistor between the DATA wire and the `3.3V` rail. Without it, the One-Wire bus will fail and the board will report faulty temperatures (e.g., `-127 °C`).
-- **DHT22 (GPIO 7):** Install a **10 kΩ** resistor between the DATA wire and the `3.3V` rail. Without it, the DATA line floats between transmissions, causing CRC errors, all-zero returns, or read timeouts.
+- **DS18B20 (GPIO 1):** Install a **4.7 kΩ** resistor between the DATA wire and the `3.3V` rail. Without it, the One-Wire bus will fail and the board will report faulty temperatures (e.g., `-127 °C`).
+- **DHT22 (GPIO 0):** Install a **10 kΩ** resistor between the DATA wire and the `3.3V` rail. Without it, the DATA line floats between transmissions, causing CRC errors, all-zero returns, or read timeouts.
 
 ### D. Relay Module 3.3V Logic Isolation (JD-VCC Split + Series Resistors)
 The relay module's IN pins have onboard ~1 kΩ pull-up resistors to its VCC rail. If VCC is 5V, these pull-ups drive GPIO 8 and GPIO 9 to 5V during the boot window (before firmware configures them as outputs), exceeding the ESP32-C3's 3.6V absolute maximum. GPIO 8 and 9 are also ESP32-C3 boot strapping pins.
