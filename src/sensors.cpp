@@ -1,12 +1,13 @@
 #include "sensors.h"
 #include "globals.h"
+#include "rtc_module.h"
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <DHT.h>
 #include "config_hardware.h"
-#include "config_sistem.h"
+#include "config_system.h"
 
-static OneWire oneWire(PIN_Senzori_Temp);
+static OneWire oneWire(PIN_TEMP_SENSORS);
 static DallasTemperature ds18b20(&oneWire);
 static DHT dht(PIN_DHT22, DHT22);
 
@@ -17,15 +18,15 @@ void initSensors() {
     ds18b20.begin();
     int deviceCount = ds18b20.getDeviceCount();
     if (deviceCount == 0) {
-        Serial.println("[EROARE] DS18B20: Nu au fost detectați senzori pe magistrala One-Wire.");
+        Serial.println("[ERROR] DS18B20: No sensors detected on the One-Wire bus.");
     } else {
-        statusDS18B20 = "OK (" + String(deviceCount) + " senzori)";
-        Serial.printf("[OK] DS18B20: Am găsit %d senzori pe pinul %d.\n", deviceCount, PIN_Senzori_Temp);
+        statusDS18B20 = "OK (" + String(deviceCount) + " sensors)";
+        Serial.printf("[OK] DS18B20: Found %d sensors on pin %d.\n", deviceCount, PIN_TEMP_SENSORS);
     }
 
     dht.begin();
-    statusDHT22 = "Initializare...";
-    Serial.println("[OK] DHT22: Inițializat. Prima citire va fi efectuată în loop().");
+    statusDHT22 = "Initializing...";
+    Serial.println("[OK] DHT22: Initialized. First reading will happen in loop().");
 }
 
 void sensorsLoop() {
@@ -33,32 +34,32 @@ void sensorsLoop() {
     lastSensorRead = millis();
 
     ds18b20.requestTemperatures();
-    tempSol = ds18b20.getTempCByIndex(0);
+    tempSoil = ds18b20.getTempCByIndex(0);
 
     float h = dht.readHumidity();
     float t = dht.readTemperature();
     if (!isnan(h) && !isnan(t)) {
-        umidAer = h;
-        tempAer = t;
+        humidityAir = h;
+        tempAir = t;
         statusDHT22 = "OK";
     } else {
-        statusDHT22 = "Eroare citire";
+        statusDHT22 = "Read error";
     }
 
     uint32_t pulseZ1, pulseZ2;
     noInterrupts();
-    pulseZ1 = impulsuriZ1;
-    pulseZ2 = impulsuriZ2;
+    pulseZ1 = pulsesZ1;
+    pulseZ2 = pulsesZ2;
     interrupts();
 
     if (rtcAvailable) {
-        DateTime now = rtc.now();
-        Serial.printf("[%02d:%02d:%02d] Sol:%.1f°C | Aer:%.1f°C %.0f%% | Z1:%.2fL Z2:%.2fL\n",
+        DateTime now = readRTC();
+        Serial.printf("[%02d:%02d:%02d] Soil:%.1f°C | Air:%.1f°C %.0f%% | Z1:%.2fL Z2:%.2fL\n",
             now.hour(), now.minute(), now.second(),
-            tempSol, tempAer, umidAer,
-            (float)pulseZ1 / IMPULSURI_PER_LITRU,
-            (float)pulseZ2 / IMPULSURI_PER_LITRU);
+            tempSoil, tempAir, humidityAir,
+            (float)pulseZ1 / PULSES_PER_LITER,
+            (float)pulseZ2 / PULSES_PER_LITER);
     } else {
-        Serial.printf("[--:--:--] Sol:%.1f°C | Aer:%.1f°C %.0f%%\n", tempSol, tempAer, umidAer);
+        Serial.printf("[--:--:--] Soil:%.1f°C | Air:%.1f°C %.0f%%\n", tempSoil, tempAir, humidityAir);
     }
 }

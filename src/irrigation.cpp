@@ -1,89 +1,90 @@
 #include "irrigation.h"
 #include "globals.h"
+#include "rtc_module.h"
 #include <Arduino.h>
 #include "config_hardware.h"
-#include "config_sistem.h"
+#include "config_system.h"
 #include "sd_logger.h"
 
-static unsigned long ultimulStartAttempt = 0;
+static unsigned long lastStartAttempt = 0;
 
-void IRAM_ATTR isrDebitZ1() { impulsuriZ1++; }
-void IRAM_ATTR isrDebitZ2() { impulsuriZ2++; }
+void IRAM_ATTR isrFlowZ1() { pulsesZ1++; }
+void IRAM_ATTR isrFlowZ2() { pulsesZ2++; }
 
-void opresteTot() {
-    digitalWrite(PIN_POMPA, RELEU_OPRIT);
-    digitalWrite(PIN_VALVA_Z1, RELEU_OPRIT);
-    digitalWrite(PIN_VALVA_Z2, RELEU_OPRIT);
-    stareCurenta = OPRIT;
-    Serial.println("[SISTEM] Toate releele sunt OPRIT.");
+void stopAll() {
+    digitalWrite(PIN_PUMP, RELAY_OFF);
+    digitalWrite(PIN_VALVE_Z1, RELAY_OFF);
+    digitalWrite(PIN_VALVE_Z2, RELAY_OFF);
+    currentState = STOPPED;
+    Serial.println("[SYSTEM] All relays are OFF.");
 }
 
 void initRelays() {
-    pinMode(PIN_POMPA, OUTPUT);
-    pinMode(PIN_VALVA_Z1, OUTPUT);
-    pinMode(PIN_VALVA_Z2, OUTPUT);
-    digitalWrite(PIN_POMPA, RELEU_OPRIT);
-    digitalWrite(PIN_VALVA_Z1, RELEU_OPRIT);
-    digitalWrite(PIN_VALVA_Z2, RELEU_OPRIT);
-    stareCurenta = OPRIT;
+    pinMode(PIN_PUMP, OUTPUT);
+    pinMode(PIN_VALVE_Z1, OUTPUT);
+    pinMode(PIN_VALVE_Z2, OUTPUT);
+    digitalWrite(PIN_PUMP, RELAY_OFF);
+    digitalWrite(PIN_VALVE_Z1, RELAY_OFF);
+    digitalWrite(PIN_VALVE_Z2, RELAY_OFF);
+    currentState = STOPPED;
     // Serial not yet started — no print here intentionally
 }
 
 void initIrrigation() {
-    pinMode(PIN_DEBIT_Z1, INPUT_PULLUP);
-    pinMode(PIN_DEBIT_Z2, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(PIN_DEBIT_Z1), isrDebitZ1, RISING);
-    attachInterrupt(digitalPinToInterrupt(PIN_DEBIT_Z2), isrDebitZ2, RISING);
-    Serial.println("[OK] Relee: Inițializate în stare OPRIT.");
-    Serial.println("[OK] Debitmetre: Întreruperi activate (GPIO 20, 21).");
+    pinMode(PIN_FLOW_Z1, INPUT_PULLUP);
+    pinMode(PIN_FLOW_Z2, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(PIN_FLOW_Z1), isrFlowZ1, RISING);
+    attachInterrupt(digitalPinToInterrupt(PIN_FLOW_Z2), isrFlowZ2, RISING);
+    Serial.println("[OK] Relays: Initialized in OFF state.");
+    Serial.println("[OK] Flow meters: Interrupts enabled (GPIO 20, 21).");
 }
 
 void irrigationLoop() {
     uint32_t currentPulseZ1, currentPulseZ2;
     noInterrupts();
-    currentPulseZ1 = impulsuriZ1;
-    currentPulseZ2 = impulsuriZ2;
+    currentPulseZ1 = pulsesZ1;
+    currentPulseZ2 = pulsesZ2;
     interrupts();
 
     DateTime now(2000, 1, 1, 0, 0, 0);
-    if (rtcAvailable) now = rtc.now();
+    if (rtcAvailable) now = readRTC();
 
-    switch (stareCurenta) {
-        case OPRIT:
-            if (rtcAvailable && now.hour() == ORA_PORNIRE && now.minute() == MINUT_PORNIRE
-                    && millis() - ultimulStartAttempt >= 60000) {
-                Serial.println("[AUTOMATIZARE] Pornire program udat. Zona 1 activă.");
+    switch (currentState) {
+        case STOPPED:
+            if (rtcAvailable && now.hour() == START_HOUR && now.minute() == START_MINUTE
+                    && millis() - lastStartAttempt >= 60000) {
+                Serial.println("[AUTOMATION] Starting watering schedule. Zone 1 active.");
                 noInterrupts();
-                impulsuriZ1 = 0;
+                pulsesZ1 = 0;
                 interrupts();
-                digitalWrite(PIN_VALVA_Z2, RELEU_OPRIT);
-                digitalWrite(PIN_VALVA_Z1, RELEU_PORNIT);
-                digitalWrite(PIN_POMPA, RELEU_PORNIT);
-                stareCurenta = UDARE_ZONA_1;
-                ultimulStartAttempt = millis();
+                digitalWrite(PIN_VALVE_Z2, RELAY_OFF);
+                digitalWrite(PIN_VALVE_Z1, RELAY_ON);
+                digitalWrite(PIN_PUMP, RELAY_ON);
+                currentState = WATERING_ZONE_1;
+                lastStartAttempt = millis();
             }
             break;
 
-        case UDARE_ZONA_1:
-            if (((float)currentPulseZ1 / IMPULSURI_PER_LITRU) >= VOLUM_TINTA_Z1) {
-                Serial.println("[AUTOMATIZARE] Zona 1 finalizată, trecere la Zona 2.");
-                digitalWrite(PIN_VALVA_Z1, RELEU_OPRIT);
+        case WATERING_ZONE_1:
+            if (((float)currentPulseZ1 / PULSES_PER_LITER) >= TARGET_VOLUME_Z1) {
+                Serial.println("[AUTOMATION] Zone 1 complete, switching to Zone 2.");
+                digitalWrite(PIN_VALVE_Z1, RELAY_OFF);
                 noInterrupts();
-                impulsuriZ2 = 0;
+                pulsesZ2 = 0;
                 interrupts();
-                digitalWrite(PIN_VALVA_Z2, RELEU_PORNIT);
-                stareCurenta = UDARE_ZONA_2;
+                digitalWrite(PIN_VALVE_Z2, RELAY_ON);
+                currentState = WATERING_ZONE_2;
             }
             break;
 
-        case UDARE_ZONA_2:
-            if (((float)currentPulseZ2 / IMPULSURI_PER_LITRU) >= VOLUM_TINTA_Z2) {
-                Serial.println("[AUTOMATIZARE] Zona 2 finalizată, oprire generală.");
-                salveazaRaportSD(
-                    (float)currentPulseZ1 / IMPULSURI_PER_LITRU,
-                    (float)currentPulseZ2 / IMPULSURI_PER_LITRU
+        case WATERING_ZONE_2:
+            if (((float)currentPulseZ2 / PULSES_PER_LITER) >= TARGET_VOLUME_Z2) {
+                Serial.println("[AUTOMATION] Zone 2 complete, stopping everything.");
+                saveSDReport(
+                    (float)currentPulseZ1 / PULSES_PER_LITER,
+                    (float)currentPulseZ2 / PULSES_PER_LITER
                 );
-                opresteTot();
+                stopAll();
             }
             break;
     }

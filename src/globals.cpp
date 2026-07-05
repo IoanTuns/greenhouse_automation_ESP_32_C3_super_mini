@@ -4,16 +4,16 @@ RTC_DS3231 rtc;
 bool rtcAvailable = false;
 unsigned long lastRtcRetry = 0;
 
-float tempSol = NAN;
-float tempAer = NAN;
-float umidAer = NAN;
+float tempSoil = NAN;
+float tempAir = NAN;
+float humidityAir = NAN;
 
-String statusRTC     = "Nedetectat";
-String statusDS18B20 = "Nedetectat";
-String statusDHT22   = "Nedetectat";
-String statusSD      = "Nedetectat";
+String statusRTC     = "Not detected";
+String statusDS18B20 = "Not detected";
+String statusDHT22   = "Not detected";
+String statusSD      = "Not detected";
 
-volatile uint32_t impulsuriZ1 = 0;
-volatile uint32_t impulsuriZ2 = 0;
+volatile uint32_t pulsesZ1 = 0;
+volatile uint32_t pulsesZ2 = 0;
 
-StareUdare stareCurenta = OPRIT;
+WateringState currentState = STOPPED;

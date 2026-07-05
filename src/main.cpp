@@ -7,12 +7,13 @@
 #include "web_server.h"
 
 void setup() {
-    // Relays OFF before anything else — GPIO 8/9 strapping pins have pull-up at 5V on relay module
+    // Relays OFF first — relay module's 5V pull-ups are on GPIO 8/9; driving them HIGH
+    // (RELAY_OFF) immediately prevents 5V from backfeeding into the 3.3V GPIO inputs.
     initRelays();
 
     Serial.begin(115200);
     { unsigned long t = millis(); while (!Serial && millis() - t < 3000) delay(10); }
-    Serial.println("\n--- Sistem Automatizare Solar Inteligent ---");
+    Serial.println("\n--- Smart Greenhouse Automation System ---");
 
     initWebServer();
     rtcAvailable = initRTC();
@@ -20,7 +21,7 @@ void setup() {
     initSensors();
     initIrrigation();
 
-    Serial.println("--- Inițializare Completă ---\n");
+    Serial.println("--- Initialization Complete ---\n");
 }
 
 void loop() {
