@@ -26,12 +26,15 @@ Follow the GPIO pin numbers labeled on the back of your board. Note that pins 20
 | Peripheral / Sensor | Component Pin | ESP32-C3 Pin | Signal Type | Important Notes |
 | :--- | :--- | :--- | :--- | :--- |
 | **DS3231 RTC Clock** | SDA<br>SCL<br>VCC<br>GND | **GPIO 7**<br>**GPIO 6**<br>**3.3V**<br>**G** | Digital (I2C) | Maintains offline time.<br>Powered at 3.3V (ESP32 pin or AMS1117 output — both are equivalent).<br>GPIO 0/1 avoided — ESP32-C3 hardware I2C peripheral unreliable on those pins. |
+| **BMP180 Barometer** | SDA<br>SCL<br>VCC<br>GND | **GPIO 7**<br>**GPIO 6**<br>**3.3V**<br>**G** | Digital (I2C) | Shares the same I2C bus as the RTC (wire in parallel — no dedicated pins needed).<br>Fixed address `0x77`, no conflict with the RTC's `0x68`. |
 | **MicroSD Card Module** | MISO<br>MOSI<br>SCK<br>CS<br>VCC<br>GND | **GPIO 2**<br>**GPIO 3**<br>**GPIO 4**<br>**GPIO 10**<br>**5V**<br>**G** | Digital (Hardware SPI) | Used for data logging (.csv).<br>Connect VCC to 5V (module has a 3.3V onboard regulator).<br>**⚠ GPIO 2 is a boot strapping pin — add a 10kΩ pull-up from MISO to 3.3V. See Section 3F.** |
 | **4-Channel Relay Module** | IN1 (Pump)<br>IN2 (Valve Z1)<br>IN3 (Valve Z2)<br>JD-VCC<br>VCC<br>GND | **GPIO 5** via 1kΩ<br>**GPIO 8** via 1kΩ<br>**GPIO 9** via 1kΩ<br>**5V**<br>**3.3V**<br>**G** | Digital Output | Relays are active `LOW`.<br>**⚠ Remove the VCC↔JD-VCC jumper.** Power JD-VCC from 5V (coils) and VCC from 3.3V (logic). Add a 1kΩ series resistor on each IN line. See Section 3D. |
-| **Temp Sensors (DS18B20 x2)** | DATA (Signal)<br>VCC<br>GND | **GPIO 1**<br>**3.3V**<br>**G** | Digital (One-Wire) | Connect both sensors in parallel.<br>Requires a physical 4.7kΩ resistor between DATA and 3.3V. |
-| **DHT22 Climate Sensor** | DATA (Signal)<br>VCC<br>GND | **GPIO 0**<br>**3.3V**<br>**G** | Digital Input | Measures greenhouse air temperature and humidity.<br>Requires a physical 10kΩ resistor between DATA and 3.3V. See Section 3C. |
+| **Temp Sensors (DS18B20 x2)** | DATA (Signal)<br>VCC<br>GND | **GPIO 0**<br>**3.3V**<br>**G** | Digital (One-Wire) | Connect both sensors in parallel.<br>Requires a physical 4.7kΩ resistor between DATA and 3.3V. |
+| **DHT22 Climate Sensor** | DATA (Signal)<br>VCC<br>GND | **GPIO 1**<br>**3.3V**<br>**G** | Digital Input | Measures greenhouse air temperature and humidity.<br>Requires a physical 10kΩ resistor between DATA and 3.3V. See Section 3C. |
 | **Flow Meter Zone 1 (YF-S201)**| Yellow (Signal)<br>Red (+)<br>Black (-) | **GPIO 20**<br>**5V**<br>**G** | Interrupt Input | Located on the back-right corner pad.<br>Powered at 5V for Hall sensor accuracy.<br>**⚠ Signal is 5V — voltage divider required before GPIO 20. See Section 3E.** |
 | **Flow Meter Zone 2 (YF-S201)**| Yellow (Signal)<br>Red (+)<br>Black (-) | **GPIO 21**<br>**5V**<br>**G** | Interrupt Input | Located on the back-left corner pad.<br>Powered at 5V for Hall sensor accuracy.<br>**⚠ Signal is 5V — voltage divider required before GPIO 21. See Section 3E.** |
+
+> **Note on GPIO1:** a previous ESP32-C3 chip on this board had a genuinely dead GPIO1 (failed One-Wire, DHT22, and SPI chip-select). That was specific to that chip's silicon, not this pin assignment or the board design — after replacing the chip, GPIO1 works normally here, confirmed by real DHT22 readings. If similar symptoms ever reappear on this exact chip, see the "GPIO1 HISTORY" comment in `include/config_hardware.h` for the full debugging history and a documented fallback (hardwiring SD CS to GND instead of using a GPIO at all).
 
 ---
 

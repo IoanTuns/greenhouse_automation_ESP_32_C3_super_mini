@@ -21,7 +21,7 @@ static bool      s_softValid  = false;
 // that follows every Wire.begin(). Call whenever endTransmission() returns NACK
 // (code 2) or requestFrom() returns fewer bytes than expected — both leave the
 // bus locked with the DS3231 holding SDA LOW.
-static void recoverI2CBus() {
+void recoverI2CBus() {
     Wire.begin(PIN_SDA, PIN_SCL);
     Wire.setClock(100000);
     for (uint8_t addr = 1; addr < 127; addr++) {

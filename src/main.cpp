@@ -5,6 +5,7 @@
 #include "irrigation.h"
 #include "sd_logger.h"
 #include "web_server.h"
+#include "app_settings.h"
 
 void setup() {
     // Relays OFF first — relay module's 5V pull-ups are on GPIO 8/9; driving them HIGH
@@ -15,6 +16,7 @@ void setup() {
     { unsigned long t = millis(); while (!Serial && millis() - t < 3000) delay(10); }
     Serial.println("\n--- Smart Greenhouse Automation System ---");
 
+    loadAppSettings();
     initWebServer();
     rtcAvailable = initRTC();
     initSD();
@@ -27,6 +29,7 @@ void setup() {
 void loop() {
     webServerLoop();
     rtcRetryLoop();
+    sdRetryLoop();
     irrigationLoop();
     sensorsLoop();
     sdLoggerLoop();
